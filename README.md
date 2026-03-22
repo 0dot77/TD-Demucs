@@ -207,3 +207,215 @@ MIT License - [LICENSE](LICENSE) 참조
 
 - [Demucs](https://github.com/facebookresearch/demucs) by Meta Research
 - [TouchDesigner](https://derivative.ca) by Derivative
+
+---
+
+# TD-Demucs (English)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TouchDesigner](https://img.shields.io/badge/TouchDesigner-2023+-blue.svg)](https://derivative.ca)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9+-green.svg)](https://python.org)
+
+**Audio Source Separation Plugin for TouchDesigner** - Separates music into individual instrument tracks using Meta's [Demucs](https://github.com/facebookresearch/demucs) model.
+
+## What is Audio Source Separation?
+
+Audio Source Separation is a technique for extracting individual instrument sounds from a single music file. TD-Demucs uses Meta's Hybrid Transformer Demucs (htdemucs) model to separate music into **4 stems**:
+
+| Stem | Description |
+|------|-------------|
+| **vocals** | Vocals / Voice |
+| **drums** | Drums / Percussion |
+| **bass** | Bass |
+| **other** | Guitar, Piano, and other instruments |
+
+## Requirements
+
+- **TouchDesigner** 2023 or later
+- **Python 3.9+** (separate Python environment with demucs installed)
+- **demucs** package: `pip install demucs`
+- **PyTorch**: automatically installed with demucs
+- **Storage**: ~80MB for model weights, ~2GB for PyTorch
+- **RAM**: minimum 8GB (16GB recommended)
+
+## Installation
+
+### 1. Prepare Python Environment
+
+Use a **separate Python environment**, not TouchDesigner's built-in Python. Demucs depends on PyTorch, so an independent environment is required.
+
+```bash
+# Create a virtual environment (recommended)
+python -m venv demucs_env
+source demucs_env/bin/activate  # macOS/Linux
+# or
+demucs_env\Scripts\activate     # Windows
+
+# Install demucs
+pip install demucs
+```
+
+### 2. Download Model
+
+```bash
+# Run the automatic model download script
+python scripts/download_model.py
+```
+
+Alternatively, the model will be automatically downloaded the first time you run demucs.
+
+### 3. TouchDesigner Setup
+
+#### Register Extension
+
+1. Create a **Base COMP** in TouchDesigner and name it `TDDemucs`.
+2. Create a **Text DAT** inside the Base COMP.
+3. Paste the contents of `td/TDDemucs_Extension.py` into the Text DAT.
+4. In the Base COMP's **Extensions** parameter:
+   - Extension Object: `TDDemucsExt`
+   - Extension Module: specify the Text DAT
+
+#### Callback Setup
+
+1. Create a **Timer CHOP** (for status polling):
+   - Length: `0.5` seconds
+   - Repeat: `On`
+   - Active: `Off` (activated when separation starts)
+2. Create a **DAT Execute** or **Script CHOP**.
+3. Paste the contents of `td/TDDemucs_Callbacks.py` into the callback DAT.
+
+#### Status Display DAT (Optional)
+
+1. Create a **Table DAT** and name it `status_dat`.
+2. Separation progress will be automatically recorded.
+
+## Usage
+
+### Basic Usage
+
+From the Python Shell or Script:
+
+```python
+# Access the Extension
+ext = op('TDDemucs').ext.TDDemucsExt
+
+# Start audio separation
+ext.Separate(
+    audio_path='/path/to/your/song.mp3',
+    python_exe='/path/to/demucs_env/bin/python'  # Python with demucs installed
+)
+
+# Check status
+print(ext.GetStatus())   # 'idle', 'processing', 'complete', 'error'
+print(ext.Message)        # Detailed message
+
+# Get stem paths after separation is complete
+stems = ext.GetStems()
+# {'vocals': '/path/separated/vocals.wav', 'drums': '...', ...}
+
+# Auto-load into Audio File In CHOPs
+ext.LoadStemsToChops()
+```
+
+### Change Model
+
+```python
+ext = op('TDDemucs').ext.TDDemucsExt
+ext.Model = 'htdemucs_ft'  # Fine-tuned model (higher quality, 4x slower)
+ext.Separate('/path/to/song.mp3', python_exe='python')
+```
+
+### Available Models
+
+| Model | Description | Processing Time |
+|-------|-------------|-----------------|
+| `htdemucs` | Default model, fastest | ~10-30s |
+| `htdemucs_ft` | Fine-tuned, higher quality | ~40-120s |
+| `htdemucs_6s` | 6 stems (adds guitar, piano) | ~15-40s |
+
+## Use Cases
+
+### Per-Instrument Audio-Reactive Visuals
+
+Load each stem into a separate Audio File In CHOP for independent audio analysis per instrument:
+
+- **vocals** -> Audio Spectrum -> Vocal-reactive particles
+- **drums** -> Audio Spectrum -> Beat-reactive camera shake
+- **bass** -> Audio Spectrum -> Low-frequency background distortion
+- **other** -> Audio Spectrum -> Melody-reactive color changes
+
+### Live Performance / VJ
+
+Pre-separate your setlist tracks to:
+- Build visual layers that respond only to specific instruments
+- Remove vocals and use instrumentals only
+- Extract drum tracks for beat sync
+
+### Interactive Installations
+
+- Adjust individual instrument track volumes based on audience participation
+- Sound installations where different instruments are heard depending on spatial position
+
+## Performance Notes
+
+- **This is NOT real-time processing.** Demucs processes entire audio files offline.
+- Processing time for a 3-minute track:
+  - CPU: ~30-90 seconds
+  - GPU (CUDA): ~10-30 seconds
+- For GPU acceleration, install the CUDA version of PyTorch: `pip install torch --index-url https://download.pytorch.org/whl/cu121`
+- Processing runs in a background thread, so the TouchDesigner UI will not freeze.
+- Already-separated tracks can be reused without reprocessing.
+
+## Troubleshooting
+
+### "Missing dependency" Error
+
+Make sure you specify the Python environment with demucs installed via the `python_exe` parameter.
+
+```python
+ext.Separate('/path/to/song.mp3', python_exe='/path/to/demucs_env/bin/python')
+```
+
+### Out of Memory (OOM)
+
+This can occur with long audio files. Demucs processes in segments internally, but for very long files (over 10 minutes), it is recommended to split them beforehand.
+
+### GPU Not Being Used
+
+Verify that the CUDA version of PyTorch is installed:
+
+```python
+import torch
+print(torch.cuda.is_available())  # Must be True for GPU usage
+```
+
+### Low Separation Quality
+
+- Try using the `htdemucs_ft` model (slower but higher quality).
+- Higher quality input audio (WAV, FLAC > MP3) produces better results.
+
+## Project Structure
+
+```
+TD-Demucs/
+├── td/
+│   ├── TDDemucs_Extension.py    # Extension (registered to COMP)
+│   └── TDDemucs_Callbacks.py    # Timer/Execute callbacks
+├── scripts/
+│   ├── demucs_worker.py         # Separation worker subprocess
+│   └── download_model.py        # Model download script
+├── models/                      # Model files (gitignored)
+├── separated/                   # Separation results (gitignored)
+├── README.md
+├── LICENSE
+└── .gitignore
+```
+
+## License
+
+MIT License - See [LICENSE](LICENSE)
+
+## Credits
+
+- [Demucs](https://github.com/facebookresearch/demucs) by Meta Research
+- [TouchDesigner](https://derivative.ca) by Derivative
