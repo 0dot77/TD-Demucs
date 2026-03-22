@@ -1,0 +1,36 @@
+# Models
+models/*.th
+models/*.pt
+models/*.onnx
+models/*.pth
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TouchDesigner
+*.toe.dir/
+*.toe.bak
+*.toe.lck
+
+# Demucs output
+separated/
+output/
+
+# IDE
+.vscode/
+.idea/
